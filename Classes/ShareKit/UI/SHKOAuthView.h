@@ -26,11 +26,12 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <WebKit/WebKit.h>
 #import "SHKOAuthViewDelegate.h"
 
-@interface SHKOAuthView : UIViewController <UIWebViewDelegate>
+@interface SHKOAuthView : UIViewController <WKNavigationDelegate>
 
-@property (nonatomic, strong) UIWebView *webView;
+@property (nonatomic, strong) WKWebView *webView;
 @property (strong) id <SHKOAuthViewDelegate> delegate;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 

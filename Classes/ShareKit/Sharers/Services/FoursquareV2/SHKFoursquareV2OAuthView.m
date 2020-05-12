@@ -29,8 +29,9 @@
 
 @implementation SHKFoursquareV2OAuthView
 
-- (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
-{		
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
+{
+	NSURLRequest* request = navigationAction.request;
 	if ([request.URL.absoluteString rangeOfString:[self.delegate authorizeCallbackURL].absoluteString].location != NSNotFound)
 	{
 		// Get query
@@ -51,9 +52,12 @@
 		[self.delegate tokenAuthorizeView:self didFinishWithSuccess:YES queryParams:queryParams error:nil];
 		self.delegate = nil;
 		
-		return NO;
+		decisionHandler(WKNavigationActionPolicyCancel);
 	}
-	return YES;
+	else
+	{
+		decisionHandler(WKNavigationActionPolicyAllow);
+	}
 }
 
 @end

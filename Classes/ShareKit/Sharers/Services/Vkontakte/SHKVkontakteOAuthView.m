@@ -34,7 +34,7 @@
 @synthesize vkWebView, appID, delegate, scope;
 
 - (void) dealloc {
-	vkWebView.delegate = nil;
+	vkWebView.navigationDelegate = nil;
 }
 
 - (void)didReceiveMemoryWarning
@@ -64,9 +64,9 @@
     
 	if(!vkWebView)
 	{
-		self.vkWebView = [[UIWebView alloc] initWithFrame:self.view.bounds];
-		vkWebView.delegate = self;
-		vkWebView.scalesPageToFit = YES;
+		WKWebViewConfiguration* configuration = [[WKWebViewConfiguration alloc] init];
+		self.vkWebView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:configuration];
+		vkWebView.navigationDelegate = self;
 		self.vkWebView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 		[self.view addSubview:vkWebView];
 	}
@@ -95,7 +95,7 @@
 - (void) viewDidDisappear:(BOOL)animated {
 	[super viewDidDisappear:animated];
 	[vkWebView stopLoading];
-	vkWebView.delegate = nil;
+	vkWebView.navigationDelegate = nil;
 }
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
@@ -103,60 +103,95 @@
     return YES;
 }
 
-#pragma mark - Web View Delegate
 
-- (BOOL)webView:(UIWebView *)aWbView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType {
-	
-	NSURL *URL = [request URL];
+#pragma mark WKNavigationDelegate
+/*! @abstract Decides whether to allow or cancel a navigation.
+ @param webView The web view invoking the delegate method.
+ @param navigationAction Descriptive information about the action
+ triggering the navigation request.
+ @param decisionHandler The decision handler to call to allow or cancel the
+ navigation. The argument is one of the constants of the enumerated type WKNavigationActionPolicy.
+ @discussion If you do not implement this method, the web view will load the request or, if appropriate, forward it to another application.
+ */
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
+{
+	NSURL *URL = [navigationAction.request URL];
 
 	if ([[URL absoluteString] isEqualToString:@"https://api.vk.com/blank.html#error=access_denied&error_reason=user_denied&error_description=User%20denied%20your%20request"]) {
 		[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
-		return NO;
+		decisionHandler(WKNavigationActionPolicyCancel);
 	}
-	SHKLog(@"Request: %@", [URL absoluteString]); 
-	return YES;
-}
-
--(void)webViewDidStartLoad:(UIWebView *)webView {
-	
-}
-
--(void)webViewDidFinishLoad:(UIWebView *)webView {
-	self.title = [webView stringByEvaluatingJavaScriptFromString:@"document.title"];
-	if ([vkWebView.request.URL.absoluteString rangeOfString:@"access_token"].location != NSNotFound) {
-		NSString *accessToken = [SHKVkontakteOAuthView stringBetweenString:@"access_token="
-																						andString:@"&" 
-																					innerString:[[[webView request] URL] absoluteString]];
-		
-		NSArray *userAr = [[[[webView request] URL] absoluteString] componentsSeparatedByString:@"&user_id="];
-		NSString *user_id = [userAr lastObject];
-		SHKLog(@"User id: %@", user_id);
-		if(user_id){
-			[[NSUserDefaults standardUserDefaults] setObject:user_id forKey:kSHKVkonakteUserId];
-		}
-		
-		if(accessToken){
-			[[NSUserDefaults standardUserDefaults] setObject:accessToken forKey:kSHKVkontakteAccessTokenKey];
-
-			[[NSUserDefaults standardUserDefaults] setObject:[[NSDate date] dateByAddingTimeInterval:86400] forKey:kSHKVkontakteExpiryDateKey];
-			[[NSUserDefaults standardUserDefaults] synchronize];
-		}
-		
-		SHKLog(@"vkWebView response: %@",[[[webView request] URL] absoluteString]);
-		[(SHKVkontakte *)delegate authComplete];
-		[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
-	} else if ([vkWebView.request.URL.absoluteString rangeOfString:@"error"].location != NSNotFound) {
-		SHKLog(@"Error: %@", vkWebView.request.URL.absoluteString);
-		[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
+	else
+	{
+		SHKLog(@"Request: %@", [URL absoluteString]);
+		decisionHandler(WKNavigationActionPolicyAllow);
 	}
-	
 }
 
--(void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error {
-	
+/*! @abstract Invoked when an error occurs while starting to load data for
+ the main frame.
+ @param webView The web view invoking the delegate method.
+ @param navigation The navigation.
+ @param error The error that occurred.
+ */
+- (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(null_unspecified WKNavigation *)navigation withError:(NSError *)error
+{
 	SHKLog(@"vkWebView Error: %@", [error localizedDescription]);
 	[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
 }
+
+
+/*! @abstract Invoked when a main frame navigation completes.
+ @param webView The web view invoking the delegate method.
+ @param navigation The navigation.
+ */
+- (void)webView:(WKWebView *)webView didFinishNavigation:(null_unspecified WKNavigation *)navigation
+{
+	[webView evaluateJavaScript:@"document.title"
+						completionHandler:^(NSString* _Nullable title, NSError * _Nullable error) {
+		self.title = title;
+		if ([vkWebView.URL.absoluteString rangeOfString:@"access_token"].location != NSNotFound) {
+			NSString *accessToken = [SHKVkontakteOAuthView stringBetweenString:@"access_token="
+																							andString:@"&"
+																						innerString:[[webView URL] absoluteString]];
+			
+			NSArray *userAr = [[[webView URL] absoluteString] componentsSeparatedByString:@"&user_id="];
+			NSString *user_id = [userAr lastObject];
+			SHKLog(@"User id: %@", user_id);
+			if(user_id){
+				[[NSUserDefaults standardUserDefaults] setObject:user_id forKey:kSHKVkonakteUserId];
+			}
+			
+			if(accessToken){
+				[[NSUserDefaults standardUserDefaults] setObject:accessToken forKey:kSHKVkontakteAccessTokenKey];
+
+				[[NSUserDefaults standardUserDefaults] setObject:[[NSDate date] dateByAddingTimeInterval:86400] forKey:kSHKVkontakteExpiryDateKey];
+				[[NSUserDefaults standardUserDefaults] synchronize];
+			}
+			
+			SHKLog(@"vkWebView response: %@",[[webView URL] absoluteString]);
+			[(SHKVkontakte *)delegate authComplete];
+			[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
+		} else if ([vkWebView.URL.absoluteString rangeOfString:@"error"].location != NSNotFound) {
+			SHKLog(@"Error: %@", vkWebView.URL.absoluteString);
+			[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
+		}
+	}];
+
+}
+
+/*! @abstract Invoked when an error occurs during a committed main frame
+ navigation.
+ @param webView The web view invoking the delegate method.
+ @param navigation The navigation.
+ @param error The error that occurred.
+ */
+- (void)webView:(WKWebView *)webView didFailNavigation:(null_unspecified WKNavigation *)navigation withError:(NSError *)error
+{
+	SHKLog(@"vkWebView Error: %@", [error localizedDescription]);
+	[[SHK currentHelper] hideCurrentViewControllerAnimated:YES];
+}
+
 
 #pragma mark - Methods
 

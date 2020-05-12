@@ -25,16 +25,16 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <WebKit/WebKit.h>
 
-@interface SHKVkontakteOAuthView : UIViewController <UIWebViewDelegate> 
+@interface SHKVkontakteOAuthView : UIViewController <WKNavigationDelegate> 
 {
 	id delegate;
-	UIWebView *vkWebView;
 	NSString *appID;	
 }
 
 @property (nonatomic, strong) id delegate;
-@property (nonatomic, strong) UIWebView *vkWebView;
+@property (nonatomic, strong) WKWebView *vkWebView;
 @property (nonatomic, strong) NSString *appID;
 @property (nonatomic, strong) NSArray *scope;
 
